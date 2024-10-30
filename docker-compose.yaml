@@ -1,0 +1,53 @@
+#version: '2'
+services:
+  zookeeper:
+    image: bitnami/zookeeper:latest
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    ports:
+      - "2181:2181"
+    networks:
+      - ksql-network
+
+  kafka:
+    image: bitnami/kafka:latest
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    networks:
+      - ksql-network
+
+  ksqldb-server:
+    image: confluentinc/ksqldb-server:latest
+    environment:
+      - KSQL_CONFIG_DIR=/etc/ksqldb
+      - KSQL_BOOTSTRAP_SERVERS=kafka:9092
+      - KSQL_KSQL_SERVICE_ID=ksql_service
+      - KSQL_LISTENERS=http://0.0.0.0:8088
+    ports:
+      - "8090:8088"
+    depends_on:
+      - kafka
+    networks:
+      - ksql-network
+
+  ksqldb-cli:
+    image: confluentinc/ksqldb-cli:latest
+    platform: linux/amd64
+    entrypoint: /bin/sh -c
+    command: >
+      echo "Waiting for KSQL server to start..."; sleep 30; ksql http://ksqldb-server:8088
+    depends_on:
+      - ksqldb-server
+    networks:
+      - ksql-network
+
+networks:
+  ksql-network:
+    driver: bridge
